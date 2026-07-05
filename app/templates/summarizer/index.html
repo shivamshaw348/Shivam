@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}PDF Summarizer - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-file-pdf"></i> PDF Summarizer</h1>
+
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Upload PDF</h5>
+                </div>
+                <div class="card-body">
+                    <form id="uploadForm" onsubmit="uploadPDF(event)">
+                        <div class="mb-3">
+                            <label for="pdfFile" class="form-label">Select PDF</label>
+                            <input type="file" class="form-control" id="pdfFile" accept=".pdf" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Subject</label>
+                            <select class="form-select" id="subject" required>
+                                <option value="">-- Select Subject --</option>
+                                <option value="English">English</option>
+                                <option value="Physics">Physics</option>
+                                <option value="Chemistry">Chemistry</option>
+                                <option value="Mathematics">Mathematics</option>
+                                <option value="Biology">Biology</option>
+                                <option value="Geography">Geography</option>
+                                <option value="History">History</option>
+                                <option value="Economics">Economics</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-cloud-upload"></i> Upload & Summarize
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Uploaded PDFs</h5>
+                </div>
+                <div class="card-body">
+                    {% if pdfs %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Filename</th>
+                                        <th>Subject</th>
+                                        <th>Pages</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for pdf in pdfs %}
+                                        <tr>
+                                            <td>{{ pdf.filename[:30] }}</td>
+                                            <td>{{ pdf.subject }}</td>
+                                            <td>{{ pdf.page_count }}</td>
+                                            <td>
+                                                <a href="{{ url_for('summarizer.view_summary', pdf_id=pdf.id) }}" class="btn btn-sm btn-info">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <button onclick="deletePDF({{ pdf.id }})" class="btn btn-sm btn-danger">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No PDFs uploaded yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function uploadPDF(event) {
+    event.preventDefault();
+    const formData = new FormData();
+    formData.append('file', document.getElementById('pdfFile').files[0]);
+    formData.append('subject', document.getElementById('subject').value);
+    
+    fetch('/summarizer/upload', {method: 'POST', body: formData})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('PDF uploaded successfully!');
+            location.reload();
+        }
+    })
+    .catch(e => alert('Error: ' + e));
+}
+
+function deletePDF(pdfId) {
+    if (confirm('Delete this PDF?')) {
+        fetch(`/summarizer/${pdfId}/delete`, {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) location.reload();
+        });
+    }
+}
+</script>
+{% endblock %}

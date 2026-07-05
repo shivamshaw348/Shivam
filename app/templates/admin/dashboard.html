@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-shield-lock"></i> Admin Dashboard</h1>
+
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Students</h5>
+                    <h2>{{ stats.total_students }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Active Users</h5>
+                    <h2>{{ stats.active_students }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title">PDFs Uploaded</h5>
+                    <h2>{{ stats.total_uploads }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Notes</h5>
+                    <h2>{{ stats.total_notes }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('admin.view_users') }}" class="btn btn-primary w-100 mb-2">
+                        <i class="bi bi-people"></i> Manage Students
+                    </a>
+                    <a href="{{ url_for('admin.view_uploads') }}" class="btn btn-success w-100 mb-2">
+                        <i class="bi bi-file-pdf"></i> View Uploads
+                    </a>
+                    <a href="{{ url_for('admin.statistics') }}" class="btn btn-info w-100">
+                        <i class="bi bi-graph-up"></i> View Statistics
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">System Info</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Total Quizzes:</strong> {{ stats.total_quizzes }}</p>
+                    <p><strong>Platform:</strong> AI Student Assistant v1.0</p>
+                    <p><strong>Status:</strong> <span class="badge bg-success">Online</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

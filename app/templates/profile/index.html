@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-person-circle"></i> My Profile</h1>
+
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    {% if user.profile_picture %}
+                        <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                    {% else %}
+                        <i class="bi bi-person-circle" style="font-size: 100px; color: #6c757d;"></i>
+                    {% endif %}
+                    <h4 class="card-title">{{ user.first_name }} {{ user.last_name }}</h4>
+                    <p class="card-text text-muted">{{ user.email }}</p>
+                    <p class="card-text">{{ user.school or 'No school info' }}</p>
+                    <a href="{{ url_for('profile.edit') }}" class="btn btn-primary">
+                        <i class="bi bi-pencil"></i> Edit Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Account Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Username:</strong> {{ user.username }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Email:</strong> {{ user.email }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>School:</strong> {{ user.school or 'Not provided' }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Class:</strong> {{ user.class_grade or 'Not provided' }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Member Since:</strong> {{ user.created_at.strftime('%d %B %Y') }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Theme:</strong> {{ user.theme.capitalize() }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Security</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('profile.change_password') }}" class="btn btn-warning">
+                        <i class="bi bi-lock"></i> Change Password
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

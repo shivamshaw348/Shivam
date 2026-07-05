@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h1>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-book"></i> Total Notes</h5>
+                    <h2 class="card-text">{{ stats.total_notes }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-chat-dots"></i> Chat Messages</h5>
+                    <h2 class="card-text">{{ stats.total_chats }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-question-circle"></i> Quizzes Taken</h5>
+                    <h2 class="card-text">{{ stats.total_quizzes }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-file-pdf"></i> PDF Files</h5>
+                    <h2 class="card-text">{{ stats.total_pdfs }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-graph-up"></i> Topics Completed</h5>
+                    <h2 class="card-text">{{ stats.completed_topics }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-lightning"></i> Total Topics</h5>
+                    <h2 class="card-text">{{ stats.total_progress }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Cards -->
+    <div class="row mb-4">
+        <h2 class="h4 mb-3">Quick Access</h2>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <a href="{{ url_for('chat.index') }}" class="card text-decoration-none h-100 border-primary">
+                <div class="card-body text-center">
+                    <i class="bi bi-chat-dots display-4 text-primary"></i>
+                    <h5 class="card-title mt-3">AI Chat</h5>
+                    <p class="card-text text-muted small">Ask academic questions</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <a href="{{ url_for('summarizer.index') }}" class="card text-decoration-none h-100 border-success">
+                <div class="card-body text-center">
+                    <i class="bi bi-file-pdf display-4 text-success"></i>
+                    <h5 class="card-title mt-3">PDF Summarizer</h5>
+                    <p class="card-text text-muted small">Summarize notes</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <a href="{{ url_for('quiz.index') }}" class="card text-decoration-none h-100 border-info">
+                <div class="card-body text-center">
+                    <i class="bi bi-question-circle display-4 text-info"></i>
+                    <h5 class="card-title mt-3">Quiz Generator</h5>
+                    <p class="card-text text-muted small">Generate quizzes</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <a href="{{ url_for('flashcard.index') }}" class="card text-decoration-none h-100 border-warning">
+                <div class="card-body text-center">
+                    <i class="bi bi-card-text display-4 text-warning"></i>
+                    <h5 class="card-title mt-3">Flashcards</h5>
+                    <p class="card-text text-muted small">Create flashcards</p>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-book"></i> Recent Notes</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_notes %}
+                        <ul class="list-group list-group-flush">
+                            {% for note in recent_notes[:5] %}
+                                <li class="list-group-item">
+                                    <a href="{{ url_for('notes.view', note_id=note.id) }}" class="text-decoration-none">
+                                        {{ note.title }} <small class="text-muted">- {{ note.subject }}</small>
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted">No notes yet. <a href="{{ url_for('notes.create') }}">Create one</a></p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-chat-dots"></i> Recent Chats</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_chats %}
+                        <ul class="list-group list-group-flush">
+                            {% for chat in recent_chats[:5] %}
+                                <li class="list-group-item">
+                                    <small class="text-muted">{{ chat.subject }}</small>
+                                    <p class="mb-0">{{ chat.user_message[:60] }}...</p>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted">No chat history yet. <a href="{{ url_for('chat.index') }}">Start chatting</a></p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

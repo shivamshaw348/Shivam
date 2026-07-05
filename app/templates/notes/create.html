@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Create Note - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-plus-lg"></i> Create New Note</h1>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" onsubmit="submitNote(event)">
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Subject</label>
+                            <select class="form-select" id="subject" name="subject" required>
+                                <option value="">-- Select Subject --</option>
+                                {% for subject in subjects %}
+                                    <option value="{{ subject }}">{{ subject }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Note Title</label>
+                            <input type="text" class="form-control" id="title" name="title" placeholder="Enter note title" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="content" class="form-label">Note Content</label>
+                            <textarea class="form-control" id="content" name="content" rows="10" placeholder="Write your notes here..." required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tags" class="form-label">Tags (comma-separated)</label>
+                            <input type="text" class="form-control" id="tags" name="tags" placeholder="e.g., important, revision, exam">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Note
+                        </button>
+                        <a href="{{ url_for('notes.index') }}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Tips</h5>
+                </div>
+                <div class="card-body">
+                    <ul>
+                        <li>Use clear headings</li>
+                        <li>Organize content logically</li>
+                        <li>Add examples where possible</li>
+                        <li>Keep notes concise</li>
+                        <li>Use tags for easy searching</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function submitNote(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    
+    fetch('/notes/create', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('Note created successfully!');
+            window.location.href = `/notes/${data.note_id}`;
+        }
+    });
+}
+</script>
+{% endblock %}

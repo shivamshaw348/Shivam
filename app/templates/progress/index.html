@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Progress Tracker - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-graph-up"></i> Progress Tracker</h1>
+
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Topics</h5>
+                    <h2 id="totalTopics">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Completed</h5>
+                    <h2 id="completedTopics">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Completion Rate</h5>
+                    <h2 id="completionRate">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title">This Week</h5>
+                    <h2 id="weeklyCount">-</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Add Topic</h5>
+                </div>
+                <div class="card-body">
+                    <form onsubmit="addTopic(event)">
+                        <div class="mb-3">
+                            <label for="subjectSelect" class="form-label">Subject</label>
+                            <select class="form-select" id="subjectSelect" required>
+                                <option value="">-- Select Subject --</option>
+                                <option value="English">English</option>
+                                <option value="Physics">Physics</option>
+                                <option value="Chemistry">Chemistry</option>
+                                <option value="Mathematics">Mathematics</option>
+                                <option value="Biology">Biology</option>
+                                <option value="Geography">Geography</option>
+                                <option value="History">History</option>
+                                <option value="Economics">Economics</option>
+                                <option value="AI">AI</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="topicInput" class="form-label">Topic Name</label>
+                            <input type="text" class="form-control" id="topicInput" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Add Topic</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Progress Chart</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="progressChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Topics Progress</h5>
+        </div>
+        <div class="card-body">
+            <div id="topicsContainer">
+                {% for prog in progress_data %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <strong>{{ prog.topic }} ({{ prog.subject }})</strong>
+                            <span>{{ prog.completion_percentage }}%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: {{ prog.completion_percentage }}%"></div>
+                        </div>
+                        <input type="range" class="form-range" min="0" max="100" value="{{ prog.completion_percentage }}" onchange="updateProgress({{ prog.id }}, this.value)">
+                    </div>
+                {% endfor %}
+            </div>
+            {% if not progress_data %}
+                <p class="text-muted">No topics added yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function addTopic(event) {
+    event.preventDefault();
+    const subject = document.getElementById('subjectSelect').value;
+    const topic = document.getElementById('topicInput').value;
+    
+    fetch('/progress/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({subject, topic})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('Topic added!');
+            location.reload();
+        }
+    });
+}
+
+function updateProgress(progressId, value) {
+    fetch(`/progress/${progressId}/update`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({completion_percentage: parseInt(value)})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Progress updated');
+        }
+    });
+}
+</script>
+{% endblock %}
