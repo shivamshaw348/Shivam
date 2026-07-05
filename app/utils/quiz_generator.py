@@ -1,160 +1,68 @@
-"""
-Quiz generation utilities.
-"""
+"""Quiz generation utilities."""
 
-import google.generativeai as genai
-from flask import current_app
 import json
-import random
+from typing import List, Dict
+from app.utils.gemini_api import ask_gemini, generate_quiz_prompt
 
-def generate_quiz(subject, topic, quiz_type='mixed', count=20):
+def generate_quiz_questions(subject: str, topic: str, question_type: str, num_questions: int) -> List[Dict]:
     """
-    Generate quiz questions using AI.
+    Generate quiz questions using Gemini API.
     
     Args:
         subject (str): Subject name
-        topic (str): Topic/chapter name
-        quiz_type (str): Type of quiz (mcq, true_false, fill_blank, short_answer, mixed)
-        count (int): Number of questions to generate
+        topic (str): Topic name
+        question_type (str): Type of questions
+        num_questions (int): Number of questions
         
     Returns:
-        list: List of question dictionaries
+        List[Dict]: List of question dictionaries
     """
     try:
-        api_key = current_app.config.get('GEMINI_API_KEY')
-        if not api_key:
-            raise ValueError('GEMINI_API_KEY not configured')
+        prompt = generate_quiz_prompt(subject, topic, question_type, num_questions)
+        response = ask_gemini(prompt)
         
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
+        if not response:
+            return generate_sample_questions(num_questions)
         
-        if quiz_type == 'mcq':
-            return _generate_mcq(model, subject, topic, count)
-        elif quiz_type == 'true_false':
-            return _generate_true_false(model, subject, topic, count)
-        elif quiz_type == 'fill_blank':
-            return _generate_fill_blank(model, subject, topic, count)
-        elif quiz_type == 'short_answer':
-            return _generate_short_answer(model, subject, topic, count)
-        else:  # mixed
-            questions = []
-            questions.extend(_generate_mcq(model, subject, topic, count//4))
-            questions.extend(_generate_true_false(model, subject, topic, count//4))
-            questions.extend(_generate_fill_blank(model, subject, topic, count//4))
-            questions.extend(_generate_short_answer(model, subject, topic, count//4))
-            return questions
+        # Parse JSON response
+        try:
+            # Find JSON array in response
+            start_idx = response.find('[')
+            end_idx = response.rfind(']') + 1
+            
+            if start_idx >= 0 and end_idx > start_idx:
+                json_str = response[start_idx:end_idx]
+                questions = json.loads(json_str)
+                return questions[:num_questions]
+        
+        except json.JSONDecodeError:
+            pass
+        
+        return generate_sample_questions(num_questions)
     
     except Exception as e:
-        raise Exception(f"Error generating quiz: {str(e)}")
+        print(f"Quiz Generation Error: {str(e)}")
+        return generate_sample_questions(num_questions)
 
-def _generate_mcq(model, subject, topic, count):
+def generate_sample_questions(num_questions: int) -> List[Dict]:
     """
-    Generate multiple choice questions.
+    Generate sample questions as fallback.
+    
+    Args:
+        num_questions (int): Number of questions
+        
+    Returns:
+        List[Dict]: List of sample questions
     """
-    prompt = f"""
-    Generate {count} multiple choice questions about {subject} - {topic}.
-    Each question should have 4 options (A, B, C, D).
-    
-    Format the response as JSON array with this structure:
-    [
-        {{
-            "id": 1,
-            "question": "Question text?",
-            "type": "mcq",
-            "options": {{"A": "Option A", "B": "Option B", "C": "Option C", "D": "Option D"}},
-            "answer": "B"
-        }}
-    ]
-    
-    Return ONLY valid JSON, no other text.
-    """
-    
-    response = model.generate_content(prompt)
-    try:
-        questions = json.loads(response.text)
-        return questions
-    except:
-        return []
-
-def _generate_true_false(model, subject, topic, count):
-    """
-    Generate true/false questions.
-    """
-    prompt = f"""
-    Generate {count} true/false questions about {subject} - {topic}.
-    
-    Format the response as JSON array:
-    [
-        {{
-            "id": 1,
-            "question": "Statement?",
-            "type": "true_false",
-            "answer": "True"
-        }}
-    ]
-    
-    Return ONLY valid JSON, no other text.
-    """
-    
-    response = model.generate_content(prompt)
-    try:
-        questions = json.loads(response.text)
-        return questions
-    except:
-        return []
-
-def _generate_fill_blank(model, subject, topic, count):
-    """
-    Generate fill in the blank questions.
-    """
-    prompt = f"""
-    Generate {count} fill-in-the-blank questions about {subject} - {topic}.
-    The blank should be represented by ______.
-    
-    Format the response as JSON array:
-    [
-        {{
-            "id": 1,
-            "question": "Sentence with ______ to be filled.",
-            "type": "fill_blank",
-            "answer": "word"
-        }}
-    ]
-    
-    Return ONLY valid JSON, no other text.
-    """
-    
-    response = model.generate_content(prompt)
-    try:
-        questions = json.loads(response.text)
-        return questions
-    except:
-        return []
-
-def _generate_short_answer(model, subject, topic, count):
-    """
-    Generate short answer questions.
-    """
-    prompt = f"""
-    Generate {count} short answer questions about {subject} - {topic}.
-    Each should have a concise answer (1-2 sentences).
-    
-    Format the response as JSON array:
-    [
-        {{
-            "id": 1,
-            "question": "What is...?",
-            "type": "short_answer",
-            "answer": "Short answer text"
-        }}
-    ]
-    
-    Return ONLY valid JSON, no other text.
-    """
-    
-    response = model.generate_content(prompt)
-    try:
-        questions = json.loads(response.text)
-        return questions
-    except:
-        return []
+    questions = []
+    for i in range(num_questions):
+        questions.append({
+            'question': f'Sample Question {i+1}?',
+            'option_a': 'Option A',
+            'option_b': 'Option B',
+            'option_c': 'Option C',
+            'option_d': 'Option D',
+            'correct_answer': 'Option A',
+            'explanation': 'This is the correct answer.'
+        })
+    return questions

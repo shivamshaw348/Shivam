@@ -1,10 +1,8 @@
-"""
-Dashboard routes for the main student interface.
-"""
+"""Dashboard routes."""
 
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template
 from flask_login import login_required, current_user
-from app.models import StudentNote, ChatHistory, Quiz, Progress, UploadedPDF
+from app.models import StudentNote, ChatHistory, Quiz, Flashcard, Progress, UploadedPDF
 from sqlalchemy import func
 
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -13,62 +11,45 @@ dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 @login_required
 def index():
     """
-    Display the main student dashboard.
-    
-    Shows:
-        - Quick stats
-        - Recent activity
-        - Navigation cards
+    Main dashboard view with statistics and quick links.
     """
     # Get statistics
     total_notes = StudentNote.query.filter_by(student_id=current_user.id).count()
     total_chats = ChatHistory.query.filter_by(student_id=current_user.id).count()
     total_quizzes = Quiz.query.filter_by(student_id=current_user.id).count()
-    total_progress = Progress.query.filter_by(student_id=current_user.id).count()
-    completed_topics = Progress.query.filter_by(student_id=current_user.id, completed=True).count()
+    total_flashcards = Flashcard.query.filter_by(student_id=current_user.id).count()
     total_pdfs = UploadedPDF.query.filter_by(student_id=current_user.id).count()
     
-    # Recent notes
+    # Get progress summary
+    total_topics = Progress.query.filter_by(student_id=current_user.id).count()
+    completed_topics = Progress.query.filter_by(student_id=current_user.id, completed=True).count()
+    
+    # Get average progress
+    avg_progress = db.session.query(func.avg(Progress.completion_percentage)).filter_by(
+        student_id=current_user.id
+    ).scalar() or 0
+    
+    # Get recent notes
     recent_notes = StudentNote.query.filter_by(student_id=current_user.id).order_by(
         StudentNote.created_at.desc()
     ).limit(5).all()
     
-    # Recent chats
-    recent_chats = ChatHistory.query.filter_by(student_id=current_user.id).order_by(
-        ChatHistory.timestamp.desc()
+    # Get recent quizzes
+    recent_quizzes = Quiz.query.filter_by(student_id=current_user.id).order_by(
+        Quiz.created_at.desc()
     ).limit(5).all()
     
-    stats = {
+    context = {
         'total_notes': total_notes,
         'total_chats': total_chats,
         'total_quizzes': total_quizzes,
-        'total_progress': total_progress,
+        'total_flashcards': total_flashcards,
+        'total_pdfs': total_pdfs,
+        'total_topics': total_topics,
         'completed_topics': completed_topics,
-        'total_pdfs': total_pdfs
+        'avg_progress': round(avg_progress, 2),
+        'recent_notes': recent_notes,
+        'recent_quizzes': recent_quizzes
     }
     
-    return render_template('dashboard/index.html',
-                         stats=stats,
-                         recent_notes=recent_notes,
-                         recent_chats=recent_chats)
-
-@dashboard_bp.route('/stats')
-@login_required
-def get_stats():
-    """
-    Get JSON statistics for dashboard charts.
-    """
-    # Subject-wise progress
-    subject_progress = db.session.query(
-        Progress.subject,
-        func.count(Progress.id).label('total'),
-        func.sum(case((Progress.completed == True, 1), else_=0)).label('completed')
-    ).filter_by(student_id=current_user.id).group_by(Progress.subject).all()
-    
-    data = {
-        'subjects': [s[0] for s in subject_progress],
-        'total_topics': [s[1] for s in subject_progress],
-        'completed_topics': [s[2] or 0 for s in subject_progress]
-    }
-    
-    return jsonify(data)
+    return render_template('dashboard/index.html', **context)

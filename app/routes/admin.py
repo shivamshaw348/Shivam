@@ -1,27 +1,20 @@
-"""
-Admin panel routes for administrative functions.
-"""
+"""Admin routes."""
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
+from functools import wraps
 from app import db
 from app.models import Student, UploadedPDF, StudentNote, Quiz
-from functools import wraps
 from sqlalchemy import func
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 def admin_required(f):
-    """
-    Decorator to check if user is admin.
-    In this implementation, first registered user is admin.
-    """
+    """Decorator to check if user is admin."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Simple admin check - can be enhanced with proper role system
-        if not current_user.is_authenticated or current_user.id != 1:
-            flash('Admin access required', 'danger')
-            return redirect(url_for('dashboard.index'))
+        if not current_user.is_authenticated or not current_user.is_admin:
+            return jsonify({'error': 'Admin access required'}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -30,106 +23,99 @@ def admin_required(f):
 @admin_required
 def dashboard():
     """
-    Display admin dashboard with statistics.
+    Admin dashboard.
     """
+    # Get statistics
     total_students = Student.query.count()
-    total_uploads = UploadedPDF.query.count()
     total_notes = StudentNote.query.count()
     total_quizzes = Quiz.query.count()
-    active_students = Student.query.filter_by(is_active=True).count()
+    total_pdfs = UploadedPDF.query.count()
     
-    stats = {
+    # Get recent students
+    recent_students = Student.query.order_by(Student.created_at.desc()).limit(10).all()
+    
+    context = {
         'total_students': total_students,
-        'total_uploads': total_uploads,
         'total_notes': total_notes,
         'total_quizzes': total_quizzes,
-        'active_students': active_students
+        'total_pdfs': total_pdfs,
+        'recent_students': recent_students
     }
     
-    return render_template('admin/dashboard.html', stats=stats)
+    return render_template('admin/dashboard.html', **context)
 
 @admin_bp.route('/users')
 @login_required
 @admin_required
-def view_users():
+def users():
     """
-    View all registered students.
+    View all users.
     """
     page = request.args.get('page', 1, type=int)
-    search = request.args.get('search', '')
+    students = Student.query.paginate(page=page, per_page=20)
     
-    query = Student.query
-    
-    if search:
-        query = query.filter(
-            db.or_(
-                Student.username.ilike(f'%{search}%'),
-                Student.email.ilike(f'%{search}%'),
-                Student.first_name.ilike(f'%{search}%')
-            )
-        )
-    
-    users = query.paginate(page=page, per_page=20)
-    
-    return render_template('admin/users.html', users=users, search_query=search)
+    return render_template('admin/users.html', students=students)
 
 @admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
 @login_required
 @admin_required
 def delete_user(user_id):
     """
-    Delete a user and all associated data.
+    Delete user.
     """
-    if user_id == current_user.id:
-        return jsonify({'error': 'Cannot delete your own account'}), 400
-    
-    user = Student.query.get_or_404(user_id)
-    db.session.delete(user)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'message': 'User deleted'})
+    try:
+        if user_id == current_user.id:
+            return jsonify({'error': 'Cannot delete yourself'}), 400
+        
+        student = Student.query.get(user_id)
+        if not student:
+            return jsonify({'error': 'User not found'}), 404
+        
+        db.session.delete(student)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'User deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/uploads')
 @login_required
 @admin_required
-def view_uploads():
+def uploads():
     """
     View all uploaded PDFs.
     """
     page = request.args.get('page', 1, type=int)
+    pdfs = UploadedPDF.query.paginate(page=page, per_page=20)
     
-    uploads = UploadedPDF.query.order_by(
-        UploadedPDF.uploaded_at.desc()
-    ).paginate(page=page, per_page=20)
-    
-    return render_template('admin/uploads.html', uploads=uploads)
+    return render_template('admin/uploads.html', pdfs=pdfs)
 
 @admin_bp.route('/statistics')
 @login_required
 @admin_required
 def statistics():
     """
-    Display detailed statistics.
+    View statistics.
     """
-    # Subject-wise notes
-    subject_stats = db.session.query(
-        StudentNote.subject,
-        func.count(StudentNote.id).label('count')
-    ).group_by(StudentNote.subject).all()
+    # Calculate stats
+    total_students = Student.query.count()
+    total_notes = StudentNote.query.count()
+    total_quizzes = Quiz.query.count()
+    total_pdfs = UploadedPDF.query.count()
     
-    # Quiz statistics
-    quiz_stats = db.session.query(
-        Quiz.subject,
-        func.count(Quiz.id).label('total'),
-        func.avg(Quiz.score).label('avg_score')
-    ).filter(Quiz.attempted == True).group_by(Quiz.subject).all()
+    # Average notes per student
+    avg_notes = db.session.query(func.avg(func.count(StudentNote.id))).group_by(StudentNote.student_id).scalar() or 0
     
-    # Recent activity
-    recent_notes = StudentNote.query.order_by(StudentNote.created_at.desc()).limit(10).all()
-    recent_uploads = UploadedPDF.query.order_by(UploadedPDF.uploaded_at.desc()).limit(10).all()
+    # Average quizzes per student
+    avg_quizzes = db.session.query(func.avg(func.count(Quiz.id))).group_by(Quiz.student_id).scalar() or 0
     
-    return render_template('admin/statistics.html',
-                         subject_stats=subject_stats,
-                         quiz_stats=quiz_stats,
-                         recent_notes=recent_notes,
-                         recent_uploads=recent_uploads)
+    context = {
+        'total_students': total_students,
+        'total_notes': total_notes,
+        'total_quizzes': total_quizzes,
+        'total_pdfs': total_pdfs,
+        'avg_notes': round(avg_notes, 2),
+        'avg_quizzes': round(avg_quizzes, 2)
+    }
+    
+    return render_template('admin/statistics.html', **context)

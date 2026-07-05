@@ -1,3 +1,1 @@
-"""
-Utility modules package.
-"""
+"""Utilities package initialization."""

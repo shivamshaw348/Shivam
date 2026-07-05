@@ -1,73 +1,80 @@
-"""
-PDF summarizer routes for document processing and summarization.
-"""
+"""PDF Summarizer routes."""
 
-from flask import Blueprint, render_template, request, jsonify, current_app, send_file
+from flask import Blueprint, render_template, request, jsonify, send_file
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
 from app import db
 from app.models import UploadedPDF
-from app.utils.pdf_processor import process_pdf, generate_summary, export_summary_pdf
+from app.utils.pdf_processor import extract_text_from_pdf, generate_summary
 import os
-from werkzeug.utils import secure_filename
-import google.generativeai as genai
 import json
+from datetime import datetime
 
 summarizer_bp = Blueprint('summarizer', __name__, url_prefix='/summarizer')
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
 def allowed_file(filename):
-    """
-    Check if file extension is allowed.
-    """
+    """Check if file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @summarizer_bp.route('/')
 @login_required
 def index():
     """
-    Display PDF summarizer interface.
+    PDF Summarizer interface.
     """
+    # Get uploaded PDFs
     pdfs = UploadedPDF.query.filter_by(student_id=current_user.id).order_by(
-        UploadedPDF.uploaded_at.desc()
+        UploadedPDF.created_at.desc()
     ).all()
     
-    return render_template('summarizer/index.html', pdfs=pdfs)
+    subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'History', 'Geography', 'Economics', 'Artificial Intelligence']
+    
+    return render_template('summarizer/index.html', pdfs=pdfs, subjects=subjects)
 
 @summarizer_bp.route('/upload', methods=['POST'])
 @login_required
 def upload_pdf():
     """
-    Handle PDF file upload and processing.
+    Upload and process PDF file.
     """
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    subject = request.form.get('subject', 'General')
-    
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Only PDF files are allowed'}), 400
-    
-    if file.content_length > current_app.config['MAX_CONTENT_LENGTH']:
-        return jsonify({'error': 'File too large'}), 400
-    
     try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        subject = request.form.get('subject', 'General').strip()
+        
+        if not file or file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Only PDF files allowed'}), 400
+        
         # Save file
         filename = secure_filename(file.filename)
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S_')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
         filename = timestamp + filename
-        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+        
+        upload_folder = 'uploads'
+        os.makedirs(upload_folder, exist_ok=True)
+        filepath = os.path.join(upload_folder, filename)
         file.save(filepath)
         
-        # Extract text from PDF
-        text, page_count = process_pdf(filepath)
+        # Extract text
+        extracted_text = extract_text_from_pdf(filepath)
+        if not extracted_text:
+            return jsonify({'error': 'Failed to extract text from PDF'}), 500
         
-        # Generate summary using Gemini
-        summary_data = generate_summary(text, subject)
+        # Generate summary
+        summary = generate_summary(extracted_text)
+        
+        # Extract key points
+        key_points = extract_key_points(extracted_text)
+        
+        # Get file size
+        file_size = os.path.getsize(filepath)
         
         # Save to database
         pdf = UploadedPDF(
@@ -75,10 +82,10 @@ def upload_pdf():
             filename=file.filename,
             filepath=filepath,
             subject=subject,
-            file_size=os.path.getsize(filepath),
-            page_count=page_count,
-            summary=summary_data.get('summary'),
-            key_points=json.dumps(summary_data.get('key_points', []))
+            file_size=file_size,
+            summary=summary,
+            key_points=json.dumps(key_points),
+            extracted_text=extracted_text
         )
         db.session.add(pdf)
         db.session.commit()
@@ -90,61 +97,52 @@ def upload_pdf():
         })
     
     except Exception as e:
-        return jsonify({'error': f'Error processing PDF: {str(e)}'}), 500
+        return jsonify({'error': f'Error: {str(e)}'}), 500
 
 @summarizer_bp.route('/<int:pdf_id>')
 @login_required
 def view_summary(pdf_id):
     """
-    Display summary for a specific PDF.
+    View PDF summary.
     """
-    pdf = UploadedPDF.query.get_or_404(pdf_id)
+    pdf = UploadedPDF.query.filter_by(id=pdf_id, student_id=current_user.id).first()
     
-    if pdf.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
+    if not pdf:
+        return jsonify({'error': 'PDF not found'}), 404
     
     key_points = json.loads(pdf.key_points) if pdf.key_points else []
     
-    return render_template('summarizer/view_summary.html',
-                         pdf=pdf,
-                         key_points=key_points)
-
-@summarizer_bp.route('/<int:pdf_id>/export', methods=['POST'])
-@login_required
-def export_pdf(pdf_id):
-    """
-    Export summary as PDF.
-    """
-    pdf = UploadedPDF.query.get_or_404(pdf_id)
-    
-    if pdf.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    try:
-        output_path = export_summary_pdf(pdf)
-        return send_file(output_path, as_attachment=True, download_name=f'summary_{pdf.id}.pdf')
-    except Exception as e:
-        return jsonify({'error': f'Error exporting PDF: {str(e)}'}), 500
+    return render_template('summarizer/view_summary.html', pdf=pdf, key_points=key_points)
 
 @summarizer_bp.route('/<int:pdf_id>/delete', methods=['POST'])
 @login_required
 def delete_pdf(pdf_id):
     """
-    Delete uploaded PDF and associated data.
+    Delete uploaded PDF.
     """
-    pdf = UploadedPDF.query.get_or_404(pdf_id)
-    
-    if pdf.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
     try:
+        pdf = UploadedPDF.query.filter_by(id=pdf_id, student_id=current_user.id).first()
+        if not pdf:
+            return jsonify({'error': 'PDF not found'}), 404
+        
+        # Delete file
         if os.path.exists(pdf.filepath):
             os.remove(pdf.filepath)
+        
+        # Delete from database
         db.session.delete(pdf)
         db.session.commit()
         
         return jsonify({'success': True, 'message': 'PDF deleted'})
+    
     except Exception as e:
-        return jsonify({'error': f'Error deleting PDF: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
-from datetime import datetime
+def extract_key_points(text, num_points=5):
+    """
+    Extract key points from text.
+    """
+    # Simple implementation - split by sentences and get top ones
+    sentences = [s.strip() for s in text.split('.') if s.strip()]
+    # Return first num_points sentences as key points
+    return sentences[:min(num_points, len(sentences))]

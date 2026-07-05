@@ -1,21 +1,20 @@
-"""
-Form and input validators.
-"""
+"""Input validation utilities."""
 
 import re
+from email_validator import validate_email as validate_email_format
 
 def validate_email(email):
     """
-    Validate email address.
+    Validate email format.
     
     Args:
         email (str): Email address to validate
         
     Returns:
-        bool: True if valid, False otherwise
+        bool: True if valid email, False otherwise
     """
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
+    return bool(re.match(pattern, email))
 
 def validate_password(password):
     """
@@ -25,18 +24,13 @@ def validate_password(password):
         password (str): Password to validate
         
     Returns:
-        tuple: (is_valid, error_message)
+        bool: True if password meets requirements
     """
-    if len(password) < 6:
-        return False, 'Password must be at least 6 characters long'
+    # At least 8 characters
+    if len(password) < 8:
+        return False
     
-    if not any(char.isdigit() for char in password):
-        return False, 'Password must contain at least one digit'
-    
-    if not any(char.isupper() for char in password):
-        return False, 'Password must contain at least one uppercase letter'
-    
-    return True, ''
+    return True
 
 def validate_username(username):
     """
@@ -46,31 +40,8 @@ def validate_username(username):
         username (str): Username to validate
         
     Returns:
-        tuple: (is_valid, error_message)
+        bool: True if valid username
     """
-    if len(username) < 3:
-        return False, 'Username must be at least 3 characters long'
-    
-    if len(username) > 20:
-        return False, 'Username must be at most 20 characters long'
-    
-    if not re.match(r'^[a-zA-Z0-9_]+$', username):
-        return False, 'Username can only contain letters, numbers, and underscores'
-    
-    return True, ''
-
-def sanitize_input(text):
-    """
-    Sanitize user input to prevent XSS.
-    
-    Args:
-        text (str): Text to sanitize
-        
-    Returns:
-        str: Sanitized text
-    """
-    # Remove dangerous characters
-    dangerous_chars = ['<', '>', '"', "'", '&']
-    for char in dangerous_chars:
-        text = text.replace(char, '')
-    return text
+    # 3-20 alphanumeric and underscore
+    pattern = r'^[a-zA-Z0-9_]{3,20}$'
+    return bool(re.match(pattern, username))

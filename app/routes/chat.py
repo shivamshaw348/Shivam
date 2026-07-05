@@ -1,62 +1,62 @@
-"""
-AI Chat routes for student-AI conversations.
-"""
+"""AI Chat routes."""
 
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models import ChatHistory
-import google.generativeai as genai
+from app.utils.gemini_api import ask_gemini
 from datetime import datetime
 
 chat_bp = Blueprint('chat', __name__, url_prefix='/chat')
-
-def get_gemini_client():
-    """
-    Initialize and return Gemini API client.
-    """
-    api_key = current_app.config.get('GEMINI_API_KEY')
-    if not api_key:
-        raise ValueError('GEMINI_API_KEY not configured')
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-pro')
 
 @chat_bp.route('/')
 @login_required
 def index():
     """
-    Display AI chat interface.
+    AI Chat interface.
     """
-    return render_template('chat/index.html')
+    # Get chat history grouped by subject
+    chat_history = ChatHistory.query.filter_by(student_id=current_user.id).order_by(
+        ChatHistory.created_at.desc()
+    ).all()
+    
+    # Get unique subjects
+    subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'History', 'Geography', 'Economics', 'Artificial Intelligence']
+    
+    return render_template('chat/index.html', chat_history=chat_history, subjects=subjects)
 
 @chat_bp.route('/send', methods=['POST'])
 @login_required
 def send_message():
     """
-    Send message to AI and get response.
+    Send chat message and get AI response.
     """
     data = request.get_json()
-    user_message = data.get('message', '').strip()
-    subject = data.get('subject', 'General')
+    message = data.get('message', '').strip()
+    subject = data.get('subject', 'General').strip()
     
-    if not user_message:
+    if not message:
         return jsonify({'error': 'Message cannot be empty'}), 400
     
-    if len(user_message) > 2000:
-        return jsonify({'error': 'Message too long (max 2000 characters)'}), 400
-    
     try:
-        # Get response from Gemini API
-        client = get_gemini_client()
-        prompt = f"You are an AI tutor helping a Class 11 student with {subject}. Answer this question helpfully and concisely: {user_message}"
-        response = client.generate_content(prompt)
-        ai_response = response.text
+        # Create prompt with subject context
+        prompt = f"""You are an expert tutor for {subject}. Answer the following question:
         
-        # Save to chat history
+Question: {message}
+
+Provide a clear, concise, and educational answer."""
+        
+        # Get AI response
+        ai_response = ask_gemini(prompt)
+        
+        if not ai_response:
+            return jsonify({'error': 'Failed to get response from AI'}), 500
+        
+        # Save to database
         chat = ChatHistory(
             student_id=current_user.id,
             subject=subject,
-            user_message=user_message,
+            user_message=message,
             ai_response=ai_response
         )
         db.session.add(chat)
@@ -64,69 +64,67 @@ def send_message():
         
         return jsonify({
             'success': True,
+            'chat_id': chat.id,
             'response': ai_response,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': chat.created_at.strftime('%Y-%m-%d %H:%M:%S')
         })
     
     except Exception as e:
-        return jsonify({'error': f'Error generating response: {str(e)}'}), 500
+        return jsonify({'error': f'Error: {str(e)}'}), 500
 
 @chat_bp.route('/history')
 @login_required
 def get_history():
     """
-    Get chat history for current user.
+    Get chat history.
     """
-    page = request.args.get('page', 1, type=int)
-    per_page = 20
+    subject = request.args.get('subject')
     
-    chats = ChatHistory.query.filter_by(student_id=current_user.id).order_by(
-        ChatHistory.timestamp.desc()
-    ).paginate(page=page, per_page=per_page)
+    query = ChatHistory.query.filter_by(student_id=current_user.id)
+    if subject:
+        query = query.filter_by(subject=subject)
     
-    data = {
-        'chats': [
-            {
-                'id': chat.id,
-                'subject': chat.subject,
-                'user_message': chat.user_message[:100],
-                'timestamp': chat.timestamp.isoformat(),
-                'is_helpful': chat.is_helpful
-            }
-            for chat in chats.items
-        ],
-        'total': chats.total,
-        'pages': chats.pages
-    }
+    chats = query.order_by(ChatHistory.created_at.desc()).all()
     
-    return jsonify(data)
+    return jsonify([
+        {
+            'id': chat.id,
+            'subject': chat.subject,
+            'message': chat.user_message,
+            'response': chat.ai_response,
+            'timestamp': chat.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        for chat in chats
+    ])
 
 @chat_bp.route('/clear', methods=['POST'])
 @login_required
 def clear_chat():
     """
-    Clear chat history for current user.
+    Clear chat history.
     """
-    ChatHistory.query.filter_by(student_id=current_user.id).delete()
-    db.session.commit()
-    
-    return jsonify({'success': True, 'message': 'Chat history cleared'})
+    try:
+        ChatHistory.query.filter_by(student_id=current_user.id).delete()
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Chat history cleared'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @chat_bp.route('/<int:chat_id>/feedback', methods=['POST'])
 @login_required
 def send_feedback(chat_id):
     """
-    Send feedback on AI response.
+    Send feedback on chat response.
     """
-    chat = ChatHistory.query.get_or_404(chat_id)
-    
-    if chat.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    data = request.get_json()
-    is_helpful = data.get('is_helpful')
-    
-    chat.is_helpful = is_helpful
-    db.session.commit()
-    
-    return jsonify({'success': True})
+    try:
+        chat = ChatHistory.query.filter_by(id=chat_id, student_id=current_user.id).first()
+        if not chat:
+            return jsonify({'error': 'Chat not found'}), 404
+        
+        helpful = request.get_json().get('helpful')
+        chat.helpful = helpful
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Feedback recorded'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

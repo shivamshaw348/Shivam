@@ -1,12 +1,10 @@
-"""
-Flashcard generation and management routes.
-"""
+"""Flashcard routes."""
 
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models import Flashcard
-from app.utils.flashcard_generator import generate_flashcards as ai_generate_flashcards
+from app.utils.flashcard_generator import generate_flashcards
 from datetime import datetime
 
 flashcard_bp = Blueprint('flashcard', __name__, url_prefix='/flashcard')
@@ -15,16 +13,14 @@ flashcard_bp = Blueprint('flashcard', __name__, url_prefix='/flashcard')
 @login_required
 def index():
     """
-    Display flashcard management interface.
+    Flashcard interface.
     """
+    # Get user's flashcards
     flashcards = Flashcard.query.filter_by(student_id=current_user.id).order_by(
         Flashcard.created_at.desc()
     ).all()
     
-    subjects = [
-        'English', 'Physics', 'Chemistry', 'Mathematics',
-        'Biology', 'Geography', 'History', 'Economics', 'Artificial Intelligence'
-    ]
+    subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'History', 'Geography', 'Economics', 'Artificial Intelligence']
     
     return render_template('flashcard/index.html', flashcards=flashcards, subjects=subjects)
 
@@ -32,125 +28,115 @@ def index():
 @login_required
 def generate():
     """
-    Generate flashcards from text or topic.
+    Generate flashcards from topic.
     """
-    data = request.get_json()
-    subject = data.get('subject', '').strip()
-    topic = data.get('topic', '').strip()
-    text = data.get('text', '').strip()
-    count = data.get('count', 10)
-    
-    if not subject or (not topic and not text):
-        return jsonify({'error': 'Subject and either topic or text is required'}), 400
-    
     try:
-        # Generate flashcards using AI
-        flashcards_data = ai_generate_flashcards(subject, topic, text, count)
+        data = request.get_json()
+        subject = data.get('subject', '').strip()
+        topic = data.get('topic', '').strip()
+        num_cards = int(data.get('num_cards', 10))
         
-        # Save flashcards
-        for card in flashcards_data:
+        if not subject or not topic:
+            return jsonify({'error': 'Subject and topic are required'}), 400
+        
+        if num_cards < 1 or num_cards > 100:
+            return jsonify({'error': 'Number of cards must be between 1 and 100'}), 400
+        
+        # Generate flashcards
+        cards = generate_flashcards(subject, topic, num_cards)
+        
+        # Save to database
+        flashcard_ids = []
+        for card in cards:
             flashcard = Flashcard(
                 student_id=current_user.id,
                 subject=subject,
-                question=card.get('question'),
-                answer=card.get('answer'),
+                question=card['question'],
+                answer=card['answer'],
                 difficulty=card.get('difficulty', 'medium')
             )
             db.session.add(flashcard)
+            db.session.flush()
+            flashcard_ids.append(flashcard.id)
         
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'count': len(flashcards_data),
-            'message': f'{len(flashcards_data)} flashcards generated successfully'
+            'flashcard_ids': flashcard_ids,
+            'message': f'{len(cards)} flashcards generated successfully'
         })
     
     except Exception as e:
-        return jsonify({'error': f'Error generating flashcards: {str(e)}'}), 500
+        db.session.rollback()
+        return jsonify({'error': f'Error: {str(e)}'}), 500
 
-@flashcard_bp.route('/<int:card_id>')
+@flashcard_bp.route('/list')
 @login_required
-def view_card(card_id):
+def list_flashcards():
     """
-    View a single flashcard.
+    Get list of flashcards for a subject.
     """
-    card = Flashcard.query.get_or_404(card_id)
+    subject = request.args.get('subject')
     
-    if card.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
+    query = Flashcard.query.filter_by(student_id=current_user.id)
+    if subject:
+        query = query.filter_by(subject=subject)
     
-    return jsonify({
-        'id': card.id,
-        'question': card.question,
-        'answer': card.answer,
-        'difficulty': card.difficulty,
-        'correct_count': card.correct_count,
-        'incorrect_count': card.incorrect_count
-    })
+    flashcards = query.order_by(Flashcard.created_at.desc()).all()
+    
+    return jsonify([
+        {
+            'id': fc.id,
+            'question': fc.question,
+            'answer': fc.answer,
+            'difficulty': fc.difficulty,
+            'correct_count': fc.correct_count,
+            'incorrect_count': fc.incorrect_count
+        }
+        for fc in flashcards
+    ])
 
-@flashcard_bp.route('/<int:card_id>/feedback', methods=['POST'])
+@flashcard_bp.route('/<int:flashcard_id>/feedback', methods=['POST'])
 @login_required
-def send_feedback(card_id):
+def record_feedback(flashcard_id):
     """
-    Record answer feedback for flashcard.
+    Record flashcard feedback (correct/incorrect).
     """
-    card = Flashcard.query.get_or_404(card_id)
-    
-    if card.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    data = request.get_json()
-    is_correct = data.get('is_correct', False)
-    
-    if is_correct:
-        card.correct_count += 1
-    else:
-        card.incorrect_count += 1
-    
-    db.session.commit()
-    
-    return jsonify({'success': True})
+    try:
+        flashcard = Flashcard.query.filter_by(id=flashcard_id, student_id=current_user.id).first()
+        if not flashcard:
+            return jsonify({'error': 'Flashcard not found'}), 404
+        
+        data = request.get_json()
+        correct = data.get('correct', False)
+        
+        if correct:
+            flashcard.correct_count += 1
+        else:
+            flashcard.incorrect_count += 1
+        
+        flashcard.last_reviewed = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Feedback recorded'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-@flashcard_bp.route('/<int:card_id>/delete', methods=['POST'])
+@flashcard_bp.route('/<int:flashcard_id>/delete', methods=['POST'])
 @login_required
-def delete_card(card_id):
+def delete_flashcard(flashcard_id):
     """
-    Delete a flashcard.
+    Delete flashcard.
     """
-    card = Flashcard.query.get_or_404(card_id)
-    
-    if card.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    db.session.delete(card)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'message': 'Flashcard deleted'})
-
-@flashcard_bp.route('/subject/<subject>')
-@login_required
-def get_subject_cards(subject):
-    """
-    Get all flashcards for a specific subject.
-    """
-    cards = Flashcard.query.filter_by(
-        student_id=current_user.id,
-        subject=subject
-    ).all()
-    
-    data = {
-        'subject': subject,
-        'cards': [
-            {
-                'id': card.id,
-                'question': card.question,
-                'answer': card.answer,
-                'difficulty': card.difficulty
-            }
-            for card in cards
-        ],
-        'total': len(cards)
-    }
-    
-    return jsonify(data)
+    try:
+        flashcard = Flashcard.query.filter_by(id=flashcard_id, student_id=current_user.id).first()
+        if not flashcard:
+            return jsonify({'error': 'Flashcard not found'}), 404
+        
+        db.session.delete(flashcard)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Flashcard deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

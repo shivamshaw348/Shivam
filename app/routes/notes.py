@@ -1,100 +1,76 @@
-"""
-Student notes management routes.
-"""
+"""Subject Notes routes."""
 
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models import StudentNote
-from datetime import datetime
 
 notes_bp = Blueprint('notes', __name__, url_prefix='/notes')
-
-SUBJECTS = [
-    'English', 'Physics', 'Chemistry', 'Mathematics',
-    'Biology', 'Geography', 'History', 'Economics', 'Artificial Intelligence'
-]
 
 @notes_bp.route('/')
 @login_required
 def index():
     """
-    Display all student notes.
+    Subject Notes interface.
     """
-    page = request.args.get('page', 1, type=int)
-    subject = request.args.get('subject', '')
-    search = request.args.get('search', '')
+    # Get all notes
+    notes = StudentNote.query.filter_by(student_id=current_user.id).order_by(
+        StudentNote.created_at.desc()
+    ).all()
     
-    query = StudentNote.query.filter_by(student_id=current_user.id)
+    subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'History', 'Geography', 'Economics', 'Artificial Intelligence']
     
-    if subject:
-        query = query.filter_by(subject=subject)
-    
-    if search:
-        query = query.filter(
-            db.or_(
-                StudentNote.title.ilike(f'%{search}%'),
-                StudentNote.content.ilike(f'%{search}%'),
-                StudentNote.tags.ilike(f'%{search}%')
-            )
-        )
-    
-    notes = query.order_by(StudentNote.updated_at.desc()).paginate(page=page, per_page=10)
-    
-    return render_template('notes/index.html',
-                         notes=notes,
-                         subjects=SUBJECTS,
-                         current_subject=subject,
-                         search_query=search)
+    return render_template('notes/index.html', notes=notes, subjects=subjects)
 
 @notes_bp.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
     """
-    Create a new note.
+    Create new note.
     """
     if request.method == 'POST':
-        data = request.get_json() or request.form
-        subject = data.get('subject', '').strip()
-        title = data.get('title', '').strip()
-        content = data.get('content', '').strip()
-        tags = data.get('tags', '').strip()
-        
-        if not all([subject, title, content]):
-            if request.is_json:
+        try:
+            data = request.get_json()
+            subject = data.get('subject', '').strip()
+            title = data.get('title', '').strip()
+            content = data.get('content', '').strip()
+            tags = data.get('tags', '').strip()
+            
+            if not subject or not title or not content:
                 return jsonify({'error': 'Subject, title, and content are required'}), 400
-            flash('Please fill in all required fields', 'danger')
-            return redirect(url_for('notes.create'))
+            
+            note = StudentNote(
+                student_id=current_user.id,
+                subject=subject,
+                title=title,
+                content=content,
+                tags=tags
+            )
+            db.session.add(note)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'note_id': note.id,
+                'message': 'Note created successfully'
+            })
         
-        note = StudentNote(
-            student_id=current_user.id,
-            subject=subject,
-            title=title,
-            content=content,
-            tags=tags
-        )
-        
-        db.session.add(note)
-        db.session.commit()
-        
-        if request.is_json:
-            return jsonify({'success': True, 'note_id': note.id})
-        
-        flash('Note created successfully', 'success')
-        return redirect(url_for('notes.view', note_id=note.id))
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-    return render_template('notes/create.html', subjects=SUBJECTS)
+    subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'History', 'Geography', 'Economics', 'Artificial Intelligence']
+    return render_template('notes/create.html', subjects=subjects)
 
 @notes_bp.route('/<int:note_id>')
 @login_required
 def view(note_id):
     """
-    View a specific note.
+    View note.
     """
-    note = StudentNote.query.get_or_404(note_id)
+    note = StudentNote.query.filter_by(id=note_id, student_id=current_user.id).first()
     
-    if note.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
+    if not note:
+        return jsonify({'error': 'Note not found'}), 404
     
     return render_template('notes/view.html', note=note)
 
@@ -102,63 +78,100 @@ def view(note_id):
 @login_required
 def edit(note_id):
     """
-    Edit an existing note.
+    Edit note.
     """
-    note = StudentNote.query.get_or_404(note_id)
+    note = StudentNote.query.filter_by(id=note_id, student_id=current_user.id).first()
     
-    if note.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
+    if not note:
+        return jsonify({'error': 'Note not found'}), 404
     
     if request.method == 'POST':
-        data = request.get_json() or request.form
-        note.subject = data.get('subject', note.subject).strip()
-        note.title = data.get('title', note.title).strip()
-        note.content = data.get('content', note.content).strip()
-        note.tags = data.get('tags', note.tags).strip()
-        note.updated_at = datetime.utcnow()
+        try:
+            data = request.get_json()
+            note.subject = data.get('subject', note.subject)
+            note.title = data.get('title', note.title)
+            note.content = data.get('content', note.content)
+            note.tags = data.get('tags', note.tags)
+            
+            db.session.commit()
+            
+            return jsonify({'success': True, 'message': 'Note updated'})
         
-        db.session.commit()
-        
-        if request.is_json:
-            return jsonify({'success': True})
-        
-        flash('Note updated successfully', 'success')
-        return redirect(url_for('notes.view', note_id=note.id))
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-    return render_template('notes/edit.html', note=note, subjects=SUBJECTS)
+    subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'History', 'Geography', 'Economics', 'Artificial Intelligence']
+    return render_template('notes/edit.html', note=note, subjects=subjects)
 
 @notes_bp.route('/<int:note_id>/delete', methods=['POST'])
 @login_required
 def delete(note_id):
     """
-    Delete a note.
+    Delete note.
     """
-    note = StudentNote.query.get_or_404(note_id)
-    
-    if note.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    db.session.delete(note)
-    db.session.commit()
-    
-    if request.is_json:
+    try:
+        note = StudentNote.query.filter_by(id=note_id, student_id=current_user.id).first()
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        
+        db.session.delete(note)
+        db.session.commit()
+        
         return jsonify({'success': True, 'message': 'Note deleted'})
-    
-    flash('Note deleted successfully', 'success')
-    return redirect(url_for('notes.index'))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @notes_bp.route('/<int:note_id>/pin', methods=['POST'])
 @login_required
-def pin_note(note_id):
+def toggle_pin(note_id):
     """
-    Pin or unpin a note.
+    Pin/unpin note.
     """
-    note = StudentNote.query.get_or_404(note_id)
+    try:
+        note = StudentNote.query.filter_by(id=note_id, student_id=current_user.id).first()
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        
+        note.pinned = not note.pinned
+        db.session.commit()
+        
+        return jsonify({'success': True, 'pinned': note.pinned})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@notes_bp.route('/search')
+@login_required
+def search():
+    """
+    Search notes.
+    """
+    query = request.args.get('q', '').strip()
+    subject = request.args.get('subject')
     
-    if note.student_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
+    search_query = StudentNote.query.filter_by(student_id=current_user.id)
     
-    note.is_pinned = not note.is_pinned
-    db.session.commit()
+    if subject:
+        search_query = search_query.filter_by(subject=subject)
     
-    return jsonify({'success': True, 'is_pinned': note.is_pinned})
+    if query:
+        search_query = search_query.filter(
+            db.or_(
+                StudentNote.title.ilike(f'%{query}%'),
+                StudentNote.content.ilike(f'%{query}%')
+            )
+        )
+    
+    notes = search_query.order_by(StudentNote.created_at.desc()).all()
+    
+    return jsonify([
+        {
+            'id': note.id,
+            'subject': note.subject,
+            'title': note.title,
+            'content': note.content[:100] + '...' if len(note.content) > 100 else note.content,
+            'tags': note.tags,
+            'pinned': note.pinned,
+            'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        for note in notes
+    ])
