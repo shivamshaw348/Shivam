@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4">{{ quiz.title }}</h1>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">{{ quiz.total_questions }} Questions</h5>
+        </div>
+        <div class="card-body">
+            <form id="quizForm" onsubmit="submitQuiz(event)">
+                {% set questions = quiz.get_questions() %}
+                {% for question in questions %}
+                    <div class="mb-4 p-3 border rounded">
+                        <h6><strong>Q{{ loop.index }}:</strong> {{ question.question }}</h6>
+                        
+                        {% if question.type == 'mcq' %}
+                            {% for key, option in question.options.items() %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="q{{ question.id }}" value="{{ key }}" id="q{{ question.id }}_{{ key }}">
+                                    <label class="form-check-label" for="q{{ question.id }}_{{ key }}">
+                                        {{ key }}: {{ option }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        
+                        {% elif question.type == 'true_false' %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="q{{ question.id }}" value="True" id="q{{ question.id }}_true">
+                                <label class="form-check-label" for="q{{ question.id }}_true">True</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="q{{ question.id }}" value="False" id="q{{ question.id }}_false">
+                                <label class="form-check-label" for="q{{ question.id }}_false">False</label>
+                            </div>
+                        
+                        {% else %}
+                            <input type="text" class="form-control" name="q{{ question.id }}" placeholder="Enter your answer">
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                
+                <button type="submit" class="btn btn-success btn-lg w-100">
+                    <i class="bi bi-check-circle"></i> Submit Quiz
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function submitQuiz(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const answers = {};
+    
+    for (let [key, value] of formData.entries()) {
+        answers[key.replace('q', '')] = value;
+    }
+    
+    fetch('/quiz/{{ quiz.id }}/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({answers})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Quiz Completed!\nScore: ${data.score}/${data.total}\nPercentage: ${data.percentage.toFixed(2)}%`);
+            window.location.href = '/quiz';
+        }
+    });
+}
+</script>
+{% endblock %}

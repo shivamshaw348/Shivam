@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Uploads - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-file-pdf"></i> PDF Uploads</h1>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Student</th>
+                            <th>Subject</th>
+                            <th>Pages</th>
+                            <th>Size</th>
+                            <th>Uploaded</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for upload in uploads.items %}
+                            <tr>
+                                <td>{{ upload.filename[:40] }}</td>
+                                <td>{{ upload.student.first_name }} {{ upload.student.last_name }}</td>
+                                <td>{{ upload.subject }}</td>
+                                <td>{{ upload.page_count }}</td>
+                                <td>{{ (upload.file_size / 1024)|round(2) }} KB</td>
+                                <td>{{ upload.uploaded_at.strftime('%d-%m-%Y') }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Note - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-pencil"></i> Edit Note</h1>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Subject</label>
+                            <select class="form-select" id="subject" name="subject" required>
+                                <option value="">-- Select Subject --</option>
+                                {% for subject in subjects %}
+                                    <option value="{{ subject }}" {% if subject == note.subject %}selected{% endif %}>{{ subject }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Note Title</label>
+                            <input type="text" class="form-control" id="title" name="title" value="{{ note.title }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="content" class="form-label">Note Content</label>
+                            <textarea class="form-control" id="content" name="content" rows="10" required>{{ note.content }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tags" class="form-label">Tags (comma-separated)</label>
+                            <input type="text" class="form-control" id="tags" name="tags" value="{{ note.tags or '' }}">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                        <a href="{{ url_for('notes.view', note_id=note.id) }}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

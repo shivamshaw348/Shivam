@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}View Summary - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3"><i class="bi bi-file-pdf"></i> {{ pdf.filename }}</h1>
+        <div>
+            <a href="#" onclick="exportPDF({{ pdf.id }})" class="btn btn-success">
+                <i class="bi bi-download"></i> Export as PDF
+            </a>
+            <a href="{{ url_for('summarizer.index') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Summary</h5>
+                </div>
+                <div class="card-body">
+                    {{ pdf.summary }}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Key Points</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        {% for point in key_points %}
+                            <li class="list-group-item">
+                                <i class="bi bi-star-fill text-warning"></i> {{ point }}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Document Info</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Subject:</strong> {{ pdf.subject }}</p>
+                    <p><strong>Pages:</strong> {{ pdf.page_count }}</p>
+                    <p><strong>File Size:</strong> {{ (pdf.file_size / 1024)|round(2) }} KB</p>
+                    <p><strong>Uploaded:</strong> {{ pdf.uploaded_at.strftime('%d-%m-%Y') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportPDF(pdfId) {
+    fetch(`/summarizer/${pdfId}/export`, {method: 'POST'})
+    .then(r => r.blob())
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `summary_${pdfId}.pdf`;
+        a.click();
+    });
+}
+</script>
+{% endblock %}

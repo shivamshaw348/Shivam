@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Flashcards - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-card-text"></i> Flashcards</h1>
+
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Generate Flashcards</h5>
+                </div>
+                <div class="card-body">
+                    <form id="flashcardForm" onsubmit="generateFlashcards(event)">
+                        <div class="mb-3">
+                            <label for="cardSubject" class="form-label">Subject</label>
+                            <select class="form-select" id="cardSubject" required>
+                                <option value="">-- Select Subject --</option>
+                                {% for subject in subjects %}
+                                    <option value="{{ subject }}">{{ subject }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="cardTopic" class="form-label">Topic</label>
+                            <input type="text" class="form-control" id="cardTopic" placeholder="e.g., Photosynthesis">
+                        </div>
+                        <div class="mb-3">
+                            <label for="cardCount" class="form-label">Number of Cards</label>
+                            <input type="number" class="form-control" id="cardCount" value="10" min="5" max="50">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus"></i> Generate
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Your Flashcards ({{ flashcards|length }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for card in flashcards %}
+                            <div class="col-md-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body" onclick="toggleFlip(this)" style="cursor: pointer; min-height: 150px;">
+                                        <div class="flip-inner">
+                                            <div class="flip-front">
+                                                <p class="text-muted small">Question</p>
+                                                <h6>{{ card.question }}</h6>
+                                            </div>
+                                            <div class="flip-back d-none">
+                                                <p class="text-muted small">Answer</p>
+                                                <h6>{{ card.answer }}</h6>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <button onclick="markCorrect({{ card.id }})" class="btn btn-sm btn-success">
+                                            <i class="bi bi-check"></i> Correct
+                                        </button>
+                                        <button onclick="markIncorrect({{ card.id }})" class="btn btn-sm btn-danger">
+                                            <i class="bi bi-x"></i> Wrong
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% if not flashcards %}
+                        <p class="text-muted">No flashcards yet. Generate some above!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function generateFlashcards(event) {
+    event.preventDefault();
+    const subject = document.getElementById('cardSubject').value;
+    const topic = document.getElementById('cardTopic').value;
+    const count = document.getElementById('cardCount').value;
+    
+    fetch('/flashcard/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({subject, topic, count})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        }
+    });
+}
+
+function toggleFlip(element) {
+    const inner = element.querySelector('.flip-inner');
+    const front = inner.querySelector('.flip-front');
+    const back = inner.querySelector('.flip-back');
+    
+    front.classList.toggle('d-none');
+    back.classList.toggle('d-none');
+}
+
+function markCorrect(cardId) {
+    fetch(`/flashcard/${cardId}/feedback`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({is_correct: true})
+    })
+    .then(r => r.json())
+    .then(data => alert('Marked as correct!'));
+}
+
+function markIncorrect(cardId) {
+    fetch(`/flashcard/${cardId}/feedback`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({is_correct: false})
+    })
+    .then(r => r.json())
+    .then(data => alert('Noted for revision!'));
+}
+</script>
+{% endblock %}

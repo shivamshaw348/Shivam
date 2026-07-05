@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Statistics - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-graph-up"></i> Statistics</h1>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Subject-wise Notes</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for subject, count in subject_stats %}
+                                <tr>
+                                    <td>{{ subject }}</td>
+                                    <td><span class="badge bg-primary">{{ count }}</span></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quiz Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Total</th>
+                                <th>Avg Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for subject, total, avg_score in quiz_stats %}
+                                <tr>
+                                    <td>{{ subject }}</td>
+                                    <td>{{ total }}</td>
+                                    <td>{{ (avg_score or 0)|round(2) }}%</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

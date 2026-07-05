@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Study Planner - AI Student Assistant{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="h3 mb-4"><i class="bi bi-calendar-event"></i> Study Planner</h1>
+
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Create Study Plan</h5>
+                </div>
+                <div class="card-body">
+                    <form id="plannerForm" onsubmit="createPlan(event)">
+                        <div class="mb-3">
+                            <label class="form-label">Select Subjects</label>
+                            <div id="subjectsList">
+                                {% for subject in subjects %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="subjects" value="{{ subject }}" id="subject_{{ subject }}">
+                                        <label class="form-check-label" for="subject_{{ subject }}">
+                                            {{ subject }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="examDate" class="form-label">Exam Date</label>
+                            <input type="date" class="form-control" id="examDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="dailyHours" class="form-label">Daily Study Hours</label>
+                            <input type="number" class="form-control" id="dailyHours" min="1" max="12" value="5" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus"></i> Generate Plan
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            {% if planner %}
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Your Study Plan</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h6>Plan Details</h6>
+                            <p><strong>Exam Date:</strong> {{ planner.exam_date.strftime('%d-%m-%Y') }}</p>
+                            <p><strong>Daily Study Hours:</strong> {{ planner.daily_hours }} hours</p>
+                            <p><strong>Subjects:</strong> {{ planner.get_subjects()|join(', ') }}</p>
+                        </div>
+                        <ul class="nav nav-tabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#daily">Daily Schedule</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#weekly">Weekly Plan</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#revision">Revision Schedule</a>
+                            </li>
+                        </ul>
+                        <div class="tab-content mt-3">
+                            <div id="daily" class="tab-pane fade show active">
+                                <pre>{{ daily_schedule|tojson(indent=2) }}</pre>
+                            </div>
+                            <div id="weekly" class="tab-pane fade">
+                                <pre>{{ weekly_schedule|tojson(indent=2) }}</pre>
+                            </div>
+                            <div id="revision" class="tab-pane fade">
+                                <pre>{{ revision_schedule|tojson(indent=2) }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Create a study plan using the form on the left.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function createPlan(event) {
+    event.preventDefault();
+    const subjects = Array.from(document.querySelectorAll('input[name="subjects"]:checked')).map(e => e.value);
+    const examDate = document.getElementById('examDate').value;
+    const dailyHours = document.getElementById('dailyHours').value;
+    
+    fetch('/planner/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({subjects, exam_date: examDate, daily_hours: parseInt(dailyHours)})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('Study plan created!');
+            location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}
